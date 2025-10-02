@@ -25,6 +25,7 @@ use std::process::Command;
 use std::time::Duration;
 use tokio::time::{sleep, interval};
 use futures::StreamExt;
+use tracing_subscriber;
 
 mod headless;
 #[cfg(unix)]
@@ -126,6 +127,14 @@ enum Commands {
         /// The command that was executed (optional)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
+    },
+    /// Start HTTP server with SSE streaming
+    Serve {
+        /// Agent to use (defaults to default agent)
+        agent: Option<String>,
+        /// Port to bind to
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
     }
 }
 
@@ -162,6 +171,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Postcmd { exit_code, command }) => {
             let command_str = command.join(" ");
             handle_postcmd(exit_code, command_str).await?;
+        },
+        Some(Commands::Serve { agent, port }) => {
+            handle_serve(agent, port).await?;
         },
         None => {
             // Check for stdin input or trailing arguments
@@ -450,6 +462,68 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
         }
     }
     
+    Ok(())
+}
+
+async fn handle_serve(agent_name: Option<String>, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    use shai_core::agent::Brain;
+    use shai_core::runners::coder::coder::CoderBrain;
+    use shai_llm::ChatMessageContent;
+    use crate::headless::tools::ToolConfig;
+
+    // Initialize tracing for HTTP server logs
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_level(true)
+        .with_env_filter("shai_http=info")
+        .init();
+
+    println!("{}", logo_cyan());
+
+    // Create agent factory based on config
+    let agent_factory: shai_http::AgentFactory = if let Some(agent_name) = agent_name.clone() {
+        println!("Starting server with agent: \x1b[1m{}\x1b[0m", agent_name);
+        let config = AgentConfig::load(&agent_name)
+            .map_err(|e| format!("Failed to load agent '{}': {}", agent_name, e))?;
+
+        Arc::new(move |trace: Vec<ChatMessage>| {
+            let config_clone = config.clone();
+            let rt = tokio::runtime::Handle::current();
+            let builder = rt.block_on(async move {
+                AgentBuilder::from_config(config_clone).await
+                    .expect("Failed to create agent from config")
+            });
+
+            builder
+                .with_traces(trace)
+                .sudo()
+        })
+    } else {
+        println!("Starting server with default agent");
+        let (llm_client, model) = ShaiConfig::get_llm().await?;
+        println!("\x1b[2m░ {} on {}\x1b[0m", model, llm_client.provider().name());
+
+        let llm_arc = Arc::new(llm_client);
+        let model_clone = model.clone();
+
+        Arc::new(move |trace: Vec<ChatMessage>| {
+            let toolbox = ToolConfig::new().build_toolbox();
+            let brain: Box<dyn Brain> = Box::new(CoderBrain::new(llm_arc.clone(), model_clone.clone()));
+
+            AgentBuilder::new(brain)
+                .with_traces(trace)
+                .tools(toolbox)
+                .sudo()
+        })
+    };
+
+    let addr = format!("127.0.0.1:{}", port);
+    println!("Server starting on \x1b[1mhttp://{}\x1b[0m", addr);
+    println!("Endpoint: \x1b[1mPOST /api/v1/multimodal\x1b[0m");
+    println!("\nPress Ctrl+C to stop\n");
+
+    shai_http::start_server(agent_factory, &addr).await?;
+
     Ok(())
 }
 

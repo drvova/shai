@@ -1,0 +1,31 @@
+[package]
+name = "shai-http"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shai-core = { path = "../shai-core" }
+shai-llm = { path = "../shai-llm" }
+
+# Web server
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# SSE and streaming
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"

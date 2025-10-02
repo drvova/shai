@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 shai-core = { path = "../shai-core" }
 shai-llm = { path = "../shai-llm" }
+shai-http = { path = "../shai-http" }
 chrono = "0.4"
 clap = { version = "4.0", features = ["derive"] }
 tempfile = "3.20.0"
@@ -28,6 +29,7 @@ ringbuffer = "0.16"
 cli-clipboard = "0.4"
 textwrap = "0.16"
 jwalk = "0.8.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 
 [target.'cfg(unix)'.dependencies]
