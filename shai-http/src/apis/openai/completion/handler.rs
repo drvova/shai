@@ -1,9 +1,9 @@
 use axum::{
     extract::State,
-    http::StatusCode,
+    response::{IntoResponse, Response},
     Json,
 };
-use shai_core::agent::{Agent, AgentEvent, AgentBuilder};
+use shai_core::agent::{Agent, AgentEvent};
 use openai_dive::v1::resources::chat::{
     ChatCompletionParameters, ChatCompletionResponse,
     ChatMessage, ChatMessageContent, ChatCompletionChoice,
@@ -12,24 +12,20 @@ use openai_dive::v1::resources::shared::FinishReason;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::ServerState;
+use crate::{ApiJson, ServerState, create_agent_from_model, ErrorResponse};
 
 /// Handle OpenAI chat completion - non-streaming only
 pub async fn handle_chat_completion(
-    State(state): State<ServerState>,
-    Json(payload): Json<ChatCompletionParameters>,
-) -> Result<Json<ChatCompletionResponse>, StatusCode> {
+    State(_state): State<ServerState>,
+    ApiJson(payload): ApiJson<ChatCompletionParameters>,
+) -> Result<Response, ErrorResponse> {
     let session_id = Uuid::new_v4();
 
     // Log request with path
-    info!("[{}] POST /v1/chat/completions", session_id);
+    info!("[{}] POST /v1/chat/completions model={}", session_id, payload.model);
 
     // Create a new agent for this request
-    let mut agent = AgentBuilder::create(state.agent_config_name.clone()).await
-        .map_err(|e| {
-            error!("[{}] Failed to create agent: {}", session_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    let mut agent = create_agent_from_model(&payload.model, &session_id).await?
         .with_traces(payload.messages.clone())
         .sudo()
         .build();
@@ -121,5 +117,5 @@ pub async fn handle_chat_completion(
         service_tier: None,
     };
 
-    Ok(Json(response))
+    Ok(Json(response).into_response())
 }

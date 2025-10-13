@@ -1,11 +1,10 @@
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::{IntoResponse, sse::Event, Sse},
+    response::{IntoResponse, Response, sse::Event, Sse},
     Json,
 };
 use futures::stream::StreamExt;
-use shai_core::agent::{Agent, AgentEvent, AgentBuilder};
+use shai_core::agent::{Agent, AgentEvent};
 use openai_dive::v1::resources::response::{
     items::{FunctionToolCall, InputItemStatus},
     request::ResponseParameters,
@@ -20,17 +19,14 @@ use tokio_stream::wrappers::BroadcastStream;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::{ServerState, DisconnectionHandler};
+use crate::{ApiJson, ServerState, DisconnectionHandler, create_agent_from_model, ErrorResponse};
 use super::types::{ResponseStreamEvent, build_message_trace};
 
 /// Handle OpenAI Response API - with streaming support
 pub async fn handle_response(
     State(state): State<ServerState>,
-    Json(payload): Json<ResponseParameters>,
-) -> Result<
-    axum::response::Response,
-    StatusCode,
-> {
+    ApiJson(payload): ApiJson<ResponseParameters>,
+) -> Result<Response, ErrorResponse> {
     let session_id = Uuid::new_v4();
 
     // Log request with path
@@ -39,7 +35,7 @@ pub async fn handle_response(
     // Verify this is stateless mode
     if payload.store.unwrap_or(false) {
         error!("[{}] Stateful mode (store=true) not yet supported", session_id);
-        return Err(StatusCode::NOT_IMPLEMENTED);
+        return Err(ErrorResponse::invalid_request("Stateful mode (store=true) not yet supported".to_string()));
     }
 
     if payload.previous_response_id.is_some() {
@@ -47,7 +43,7 @@ pub async fn handle_response(
             "[{}] Stateful mode (previous_response_id) not yet supported",
             session_id
         );
-        return Err(StatusCode::NOT_IMPLEMENTED);
+        return Err(ErrorResponse::invalid_request("Stateful mode (previous_response_id) not yet supported".to_string()));
     }
 
     // Check if streaming is requested
@@ -269,20 +265,15 @@ fn create_response_event_stream(
 
 /// Handle streaming response
 async fn handle_response_stream(
-    state: ServerState,
+    _state: ServerState,
     payload: ResponseParameters,
     session_id: Uuid,
-) -> Result<axum::response::Response, StatusCode> {
+) -> Result<Response, ErrorResponse> {
     // Build the message trace from the request
     let trace = build_message_trace(&payload);
 
     // Create a new agent for this request
-    let mut agent = AgentBuilder::create(state.agent_config_name.clone())
-        .await
-        .map_err(|e| {
-            error!("[{}] Failed to create agent: {}", session_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    let mut agent = create_agent_from_model(&payload.model, &session_id).await?
         .with_traces(trace)
         .sudo()
         .build();
@@ -331,22 +322,17 @@ async fn handle_response_stream(
 
 /// Handle non-streaming response
 async fn handle_response_non_stream(
-    state: ServerState,
+    _state: ServerState,
     payload: ResponseParameters,
     session_id: Uuid,
-) -> Result<axum::response::Response, StatusCode> {
+) -> Result<Response, ErrorResponse> {
     use super::types::{ResponseEventData, ResponseEventType};
 
     // Build the message trace from the request
     let trace = build_message_trace(&payload);
 
     // Create a new agent for this request
-    let mut agent = AgentBuilder::create(state.agent_config_name.clone())
-        .await
-        .map_err(|e| {
-            error!("[{}] Failed to create agent: {}", session_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    let mut agent = create_agent_from_model(&payload.model, &session_id).await?
         .with_traces(trace)
         .sudo()
         .build();
@@ -392,7 +378,7 @@ async fn handle_response_non_stream(
                 None
             }
         })
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+        .ok_or_else(|| ErrorResponse::internal_error("No completion event received".to_string()))?;
 
     Ok(Json(final_response).into_response())
 }

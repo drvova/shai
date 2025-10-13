@@ -130,8 +130,6 @@ enum Commands {
     },
     /// Start HTTP server with SSE streaming
     Serve {
-        /// Agent to use (defaults to default agent)
-        agent: Option<String>,
         /// Port to bind to
         #[arg(short, long, default_value = "3000")]
         port: u16,
@@ -172,8 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let command_str = command.join(" ");
             handle_postcmd(exit_code, command_str).await?;
         },
-        Some(Commands::Serve { agent, port }) => {
-            handle_serve(agent, port).await?;
+        Some(Commands::Serve { port }) => {
+            handle_serve(port).await?;
         },
         None => {
             // Check for stdin input or trailing arguments
@@ -465,7 +463,7 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
     Ok(())
 }
 
-async fn handle_serve(agent_name: Option<String>, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for HTTP server logs
     tracing_subscriber::fmt()
         .with_target(false)
@@ -475,21 +473,8 @@ async fn handle_serve(agent_name: Option<String>, port: u16) -> Result<(), Box<d
 
     println!("{}", logo_cyan());
 
-    if let Some(ref name) = agent_name {
-        println!("Starting server with agent: \x1b[1m{}\x1b[0m", name);
-    } else {
-        println!("Starting server with default agent");
-    }
-
     let addr = format!("127.0.0.1:{}", port);
-    println!("Server starting on \x1b[1mhttp://{}\x1b[0m", addr);
-    println!("\nAvailable endpoints:");
-    println!("  \x1b[1mPOST /v1/chat/completions\x1b[0m    - OpenAI-compatible chat completion API");
-    println!("  \x1b[1mPOST /v1/responses\x1b[0m           - OpenAI-compatible responses API (stateless)");
-    println!("  \x1b[1mPOST /v1/multimodal\x1b[0m          - Multimodal query API (streaming)");
-    println!("\nPress Ctrl+C to stop\n");
-
-    shai_http::start_server(agent_name, &addr).await?;
+    shai_http::start_server(&addr).await?;
 
     Ok(())
 }

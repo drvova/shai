@@ -1,25 +1,23 @@
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::{sse::Event, Sse},
+    response::{IntoResponse, Response, sse::Event, Sse},
     Json,
 };
-use futures::stream::{Stream, StreamExt};
-use shai_core::agent::{Agent, AgentEvent, AgentBuilder};
+use futures::stream::StreamExt;
+use shai_core::agent::{Agent, AgentEvent};
 use shai_llm::{ChatMessage, ChatMessageContent, ToolCall as LlmToolCall, Function};
-use std::convert::Infallible;
 use tracing::{error, info, debug};
 use tokio_stream::wrappers::BroadcastStream;
 use uuid::Uuid;
 
 use super::types::{MultiModalQuery, MultiModalStreamingResponse, MultiModalResponse, ResponseMessage, AssistantMessage, ToolCall, ToolCallResult};
-use crate::{ServerState, DisconnectionHandler};
+use crate::{ApiJson, ServerState, DisconnectionHandler, create_agent_from_model, ErrorResponse};
 
 /// Handle multimodal query - streaming response
 pub async fn handle_multimodal_query_stream(
-    State(state): State<ServerState>,
-    Json(payload): Json<MultiModalQuery>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
+    State(_state): State<ServerState>,
+    ApiJson(payload): ApiJson<MultiModalQuery>,
+) -> Result<Response, ErrorResponse> {
     let session_id = Uuid::new_v4();
     info!("[{}] POST /v1/multimodal model={}", session_id, payload.model);
 
@@ -27,11 +25,7 @@ pub async fn handle_multimodal_query_stream(
     let trace = build_message_trace(&payload);
 
     // Create a new agent for this request
-    let mut agent = AgentBuilder::create(state.agent_config_name.clone()).await
-        .map_err(|e| {
-            error!("[{}] Failed to create agent: {}", session_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    let mut agent = create_agent_from_model(&payload.model, &session_id).await?
         .with_traces(trace)
         .sudo()
         .build();
@@ -117,14 +111,14 @@ pub async fn handle_multimodal_query_stream(
         completed: false,
     };
 
-    Ok(Sse::new(disconnection_handler))
+    Ok(Sse::new(disconnection_handler).into_response())
 }
 
 /// Handle multimodal query - non-streaming response
 pub async fn handle_multimodal_query(
-    State(state): State<ServerState>,
-    Json(payload): Json<MultiModalQuery>,
-) -> Result<Json<MultiModalResponse>, StatusCode> {
+    State(_state): State<ServerState>,
+    ApiJson(payload): ApiJson<MultiModalQuery>,
+) -> Result<Response, ErrorResponse> {
     let session_id = Uuid::new_v4();
     info!("[{}] POST /v1/multimodal model={} stream={}", session_id, payload.model, payload.stream);
 
@@ -132,11 +126,7 @@ pub async fn handle_multimodal_query(
     let trace = build_message_trace(&payload);
 
     // Create a new agent for this request
-    let mut agent = AgentBuilder::create(state.agent_config_name.clone()).await
-        .map_err(|e| {
-            error!("[{}] Failed to create agent: {}", session_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?
+    let mut agent = create_agent_from_model(&payload.model, &session_id).await?
         .with_traces(trace)
         .sudo()
         .build();
@@ -170,7 +160,7 @@ pub async fn handle_multimodal_query(
         result: result_messages,
     };
 
-    Ok(Json(response))
+    Ok(Json(response).into_response())
 }
 
 /// Convert serde_json::Value parameters to HashMap<String, String>
