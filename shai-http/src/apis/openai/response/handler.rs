@@ -18,12 +18,7 @@ pub async fn handle_response(
     ApiJson(payload): ApiJson<ResponseParameters>,
 ) -> Result<Response, ErrorResponse> {
     let request_id = Uuid::new_v4();
-
-    // Determine ephemeral mode based on store parameter
-    let store = payload.store.unwrap_or(true); // OpenAI defaults to true
-    let is_ephemeral = !store;
-
-    // Determine session_id: use previous_response_id, or create new if store=true, or generate temp for ephemeral
+    let store = payload.store.unwrap_or(true);
     let session_id = payload.previous_response_id.clone()
         .unwrap_or_else(|| format!("resp_{}", Uuid::new_v4()));
 
@@ -32,12 +27,11 @@ pub async fn handle_response(
 
     // Check if streaming is requested
     if payload.stream.unwrap_or(false) {
-        handle_response_stream(state, payload, request_id, session_id, is_ephemeral).await
+        handle_response_stream(state, payload, request_id, session_id, !store).await
     } else {
-        handle_response_non_stream(state, payload, request_id, session_id, is_ephemeral).await
+        handle_response_non_stream(state, payload, request_id, session_id, !store).await
     }
 }
-
 
 /// Handle streaming response
 async fn handle_response_stream(
@@ -91,6 +85,7 @@ async fn handle_response_non_stream(
     return Err(ErrorResponse::internal_error("Response API (non-stream) not yet implemented".to_string()));
 }
 
+
 /// GET /v1/responses/{response_id} - Retrieve a model response
 /// Read-only access to an ongoing or completed session
 pub async fn handle_get_response(
@@ -124,6 +119,7 @@ pub async fn handle_get_response(
 
     Ok(Sse::new(stream).into_response())
 }
+
 
 /// POST /v1/responses/{response_id}/cancel - Cancel a model response
 pub async fn handle_cancel_response(

@@ -75,8 +75,8 @@ pub async fn start_server(
         .route("/v1/responses", post(apis::openai::handle_response))
         .route("/v1/responses/:response_id", get(apis::openai::handle_get_response))
         .route("/v1/responses/:response_id/cancel", post(apis::openai::handle_cancel_response))
-        // OpenAI-compatible Chat Completion API - TODO: refactor
-        // .route("/v1/chat/completions", post(apis::openai::handle_chat_completion))
+        // OpenAI-compatible Chat Completion API
+        .route("/v1/chat/completions", post(apis::openai::handle_chat_completion))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -85,8 +85,12 @@ pub async fn start_server(
     // Print server info
     println!("Server starting on \x1b[1mhttp://{}\x1b[0m", config.address);
     println!("\nAvailable endpoints:");
-    println!("  \x1b[1mPOST /v1/responses\x1b[0m                    - OpenAI Responses API");
-    println!("  \x1b[1mPOST /v1/multimodal\x1b[0m                   - Simple multimodal API");
+    println!("  \x1b[1mPOST /v1/chat/completions\x1b[0m            - OpenAI Chat Completions API (ephemeral)");
+    println!("  \x1b[1mPOST /v1/responses\x1b[0m                    - OpenAI Responses API (stateful/stateless)");
+    println!("  \x1b[1mGET  /v1/responses/:id\x1b[0m                - Get response by ID");
+    println!("  \x1b[1mPOST /v1/responses/:id/cancel\x1b[0m        - Cancel a response");
+    println!("  \x1b[1mPOST /v1/multimodal\x1b[0m                   - Simple multimodal API (streaming)");
+    println!("  \x1b[1mPOST /v1/multimodal/:session_id\x1b[0m      - Simple multimodal API (with session)");
 
     // List available agents
     use shai_core::config::agent::AgentConfig;
