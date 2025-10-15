@@ -30,7 +30,6 @@ impl Default for SessionManagerConfig {
 pub struct SessionManager {
     sessions: Arc<Mutex<HashMap<String, Arc<AgentSession>>>>,
     max_sessions: Option<usize>,
-    allow_creation: bool,
     ephemeral: bool
 }
 
@@ -39,7 +38,6 @@ impl SessionManager {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             max_sessions: config.max_sessions,
-            allow_creation: true,
             ephemeral: config.ephemeral
         }
     }
@@ -131,13 +129,6 @@ impl SessionManager {
             )));
         }
 
-        // Check if creation is allowed
-        if !self.allow_creation {
-            return Err(AgentError::ExecutionError(
-                "Session creation disabled".to_string(),
-            ));
-        }
-
         // Check max sessions limit
         if let Some(max) = self.max_sessions {
             if sessions.len() >= max {
@@ -148,15 +139,17 @@ impl SessionManager {
             }
         }
 
+         // Check max sessions limit
+        if self.ephemeral && !ephemeral {
+            return Err(AgentError::ExecutionError(format!(
+                "Only Ephemeral session are authorized on this server"
+            )));
+        }
+
         let session = self.create_session(&http_request_id.to_string(), session_id, agent_name, ephemeral).await?;
-
         sessions.insert(session_id.to_string(), session.clone());
-        Ok(session)
-    }
 
-    /// Check if server allows persistent sessions
-    pub fn allows_persistent(&self) -> bool {
-        !self.ephemeral
+        Ok(session)
     }
 
     /// Cancel a session (stop the agent)
@@ -170,10 +163,5 @@ impl SessionManager {
     /// Get the number of active sessions
     pub async fn session_count(&self) -> usize {
         self.sessions.lock().await.len()
-    }
-
-    /// Set whether new sessions can be created
-    pub fn set_allow_creation(&mut self, allow: bool) {
-        self.allow_creation = allow;
     }
 }

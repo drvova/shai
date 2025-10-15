@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::types::{MultiModalQuery, Message};
 use super::formatter::SimpleFormatter;
-use crate::{ApiJson, ServerState, ErrorResponse, create_sse_stream};
+use crate::{session_to_sse_stream, ApiJson, ErrorResponse, ServerState};
 
 /// Handle multimodal query - streaming response
 pub async fn handle_multimodal_query_stream(
@@ -63,7 +63,7 @@ pub async fn handle_multimodal_query_stream(
     let formatter = SimpleFormatter::new(payload.model.clone());
 
     // Create SSE stream
-    let stream = create_sse_stream(request_session, formatter, session_id);
+    let stream = session_to_sse_stream(request_session, formatter, session_id);
 
     Ok(Sse::new(stream).into_response())
 }

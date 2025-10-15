@@ -4,6 +4,7 @@ use futures::stream::{Stream, StreamExt};
 use serde::Serialize;
 use shai_core::agent::{AgentEvent, PublicAgentState};
 use std::convert::Infallible;
+use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;
 
@@ -29,25 +30,19 @@ pub trait EventFormatter: Send {
     }
 }
 
-/// Create an SSE stream from a RequestSession and formatter
-/// The stream automatically handles:
-/// - Event formatting via the formatter
-/// - Completion detection (stops on Completed or Paused events)
-/// - Cleanup via RequestSession drop
-pub fn create_sse_stream<F>(
-    request_session: RequestSession,
+/// Internal helper to create SSE stream with optional lifecycle
+fn sse_stream_internal<F, L>(
+    event_rx: Receiver<AgentEvent>,
     formatter: F,
     session_id: String,
+    lifecycle: Option<L>,
 ) -> impl Stream<Item = Result<Event, Infallible>>
 where
     F: EventFormatter + 'static,
+    L: Send + 'static,
 {
-    let event_rx = request_session.event_rx;
-    let _controller = request_session.controller;
-    let _lifecycle = request_session.lifecycle;
-
-    let stream = futures::stream::unfold(
-        (BroadcastStream::new(event_rx), formatter, false, _lifecycle),
+    futures::stream::unfold(
+        (BroadcastStream::new(event_rx), formatter, false, lifecycle),
         move |state| {
             let session_id = session_id.clone();
             async move {
@@ -60,12 +55,8 @@ where
                 loop {
                     match rx.next().await {
                         Some(Ok(event)) => {
-                            // Check if this is a terminal event
                             let is_terminal = is_terminal_event(&event);
-
-                            // Format the event
                             let formatted = fmt.format_event(event, &session_id).await;
-
                             let new_done = if is_terminal { true } else { done };
 
                             if let Some(output) = formatted {
@@ -76,16 +67,13 @@ where
                                     }
                                     Err(e) => {
                                         error!("[{}] Failed to serialize event: {}", session_id, e);
-                                        // Continue to next event
                                         continue;
                                     }
                                 }
                             } else {
-                                // Event was filtered, check if we should stop
                                 if new_done {
                                     return None;
                                 }
-                                // Continue to next event
                                 continue;
                             }
                         }
@@ -94,16 +82,43 @@ where
                             return None;
                         }
                         None => {
-                            // Stream ended
                             return None;
                         }
                     }
                 }
             }
         },
-    );
+    )
+}
 
-    stream
+/// Core SSE stream creation from event receiver
+/// Watches events, formats them, and stops on completion or client disconnect
+pub fn event_to_sse_stream<F>(
+    event_rx: Receiver<AgentEvent>,
+    formatter: F,
+    session_id: String,
+) -> impl Stream<Item = Result<Event, Infallible>>
+where
+    F: EventFormatter + 'static,
+{
+    sse_stream_internal(event_rx, formatter, session_id, None::<()>)
+}
+
+/// Create an SSE stream from a RequestSession
+/// Same as sse_stream but keeps lifecycle in scope for session cleanup
+pub fn session_to_sse_stream<F>(
+    request_session: RequestSession,
+    formatter: F,
+    session_id: String,
+) -> impl Stream<Item = Result<Event, Infallible>>
+where
+    F: EventFormatter + 'static,
+{
+    let event_rx = request_session.event_rx;
+    let _controller = request_session.controller;
+    let lifecycle = request_session.lifecycle;
+
+    sse_stream_internal(event_rx, formatter, session_id, Some(lifecycle))
 }
 
 /// Check if an event signals the end of the stream

@@ -7,7 +7,7 @@ use openai_dive::v1::resources::response::request::ResponseParameters;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::{ApiJson, ServerState, ErrorResponse, create_sse_stream};
+use crate::{event_to_sse_stream, session_to_sse_stream, ApiJson, ErrorResponse, ServerState};
 use super::types::build_message_trace;
 use super::formatter::ResponseFormatter;
 
@@ -75,7 +75,7 @@ async fn handle_response_stream(
     let formatter = ResponseFormatter::new(model, payload);
 
     // Create SSE stream
-    let stream = create_sse_stream(request_session, formatter, session_id);
+    let stream = session_to_sse_stream(request_session, formatter, session_id);
 
     Ok(Sse::new(stream).into_response())
 }
@@ -92,16 +92,37 @@ async fn handle_response_non_stream(
 }
 
 /// GET /v1/responses/{response_id} - Retrieve a model response
+/// Read-only access to an ongoing or completed session
 pub async fn handle_get_response(
-    State(_state): State<ServerState>,
+    State(state): State<ServerState>,
     Path(response_id): Path<String>,
 ) -> Result<Response, ErrorResponse> {
-    // TODO: Implement response retrieval
-    // This would need to:
-    // 1. Look up the session by response_id
-    // 2. Return the response state (potentially streaming from starting_after)
-    info!("GET /v1/responses/{}", response_id);
-    Err(ErrorResponse::internal_error("GET response not yet implemented".to_string()))
+    let request_id = Uuid::new_v4();
+    info!("[{}] GET /v1/responses/{}", request_id, response_id);
+
+    // Get the existing session
+    let agent_session = state.session_manager
+        .get_session(&request_id.to_string(), &response_id)
+        .await
+        .map_err(|e| ErrorResponse::invalid_request(format!("Response not found: {}", e)))?;
+
+    // Subscribe to events (non-blocking, read-only)
+    let event_rx = agent_session.watch();
+
+    // Create a minimal payload for the formatter
+    let placeholder_payload = ResponseParameters {
+        model: agent_session.agent_name.clone(),
+        stream: Some(true),
+        ..Default::default()
+    };
+
+    // Create the formatter
+    let formatter = ResponseFormatter::new(agent_session.agent_name.clone(), placeholder_payload);
+
+    // Create SSE stream using the simple sse_stream (no lifecycle needed for read-only)
+    let stream = event_to_sse_stream(event_rx, formatter, response_id);
+
+    Ok(Sse::new(stream).into_response())
 }
 
 /// POST /v1/responses/{response_id}/cancel - Cancel a model response

@@ -56,6 +56,12 @@ impl AgentSession {
         ctrl.cancel().await
     }
 
+    /// Subscribe to events from this session (read-only, non-blocking)
+    /// Used for GET /v1/responses/{response_id} to observe an ongoing session
+    pub fn watch(&self) -> Receiver<AgentEvent> {
+        self.event_rx.resubscribe()
+    }
+
     /// Handle a request for this agent session
     /// Returns a RequestSession that manages the lifecycle
     pub async fn handle_request(&self, http_request_id: &String, trace: Vec<ChatMessage>) -> Result<RequestSession, AgentError> {
