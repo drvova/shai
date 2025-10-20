@@ -1,4 +1,5 @@
 use rand::Rng;
+use ratatui::style::Color;
 
 pub fn shai_logo() -> String {
     format!(r#"
@@ -16,6 +17,77 @@ pub static SHAI_YELLOW: (u8, u8, u8) = (249,188,81);
 pub static SHAI_GREEN: (u8, u8, u8)  = (18,200,124);
 pub static SHAI_BLUE: (u8,u8,u8) = (148,220,239);
 pub static SHAI_WHITE: (u8,u8,u8) = (200,200,200);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Theme {
+    Dark,
+    Light,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ThemePalette {
+    pub input_text: Color,
+    pub placeholder: Color,
+    pub border: Color,
+    pub status: Color,
+    pub method_label: Color,
+    pub suggestion_normal: Color,
+    pub suggestion_selected_fg: Color,
+    pub suggestion_selected_bg: Color,
+    pub cursor_fg: Color,
+    pub cursor_bg: Color,
+}
+
+impl Theme {
+    /// Read theme from SHAI_TUI_THEME environment variable
+    /// Defaults to Dark if not set or invalid
+    pub fn from_env() -> Self {
+        std::env::var("SHAI_TUI_THEME")
+            .ok()
+            .and_then(|s| match s.to_lowercase().as_str() {
+                "light" => Some(Theme::Light),
+                "dark" => Some(Theme::Dark),
+                _ => None,
+            })
+            .unwrap_or(Theme::Dark)
+    }
+
+    pub fn toggle(&mut self) {
+        *self = match self {
+            Theme::Dark => Theme::Light,
+            Theme::Light => Theme::Dark,
+        };
+    }
+
+    pub fn palette(&self) -> ThemePalette {
+        match self {
+            Theme::Dark => ThemePalette {
+                input_text: Color::White,
+                placeholder: Color::DarkGray,
+                border: Color::DarkGray,
+                status: Color::Yellow,
+                method_label: Color::DarkGray,
+                suggestion_normal: Color::White,
+                suggestion_selected_fg: Color::Yellow,
+                suggestion_selected_bg: Color::DarkGray,
+                cursor_fg: Color::White,
+                cursor_bg: Color::White,
+            },
+            Theme::Light => ThemePalette {
+                input_text: Color::Black,
+                placeholder: Color::Rgb(120, 120, 120),  // Medium gray
+                border: Color::Rgb(100, 100, 100),       // Darker gray for visibility
+                status: Color::Rgb(200, 100, 0),         // Orange (readable on white)
+                method_label: Color::Rgb(100, 100, 100), // Same as border
+                suggestion_normal: Color::Black,
+                suggestion_selected_fg: Color::Black,
+                suggestion_selected_bg: Color::Rgb(255, 220, 100), // Light yellow highlight
+                cursor_fg: Color::Black,
+                cursor_bg: Color::Black,
+            },
+        }
+    }
+}
 
 fn rgb_to_256_color(r: u8, g: u8, b: u8) -> u8 {
     let r_index = (r as f32 / 255.0 * 5.0).round() as u8;

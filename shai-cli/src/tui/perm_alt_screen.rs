@@ -17,18 +17,21 @@ use ratatui::{
 use shai_core::agent::events::PermissionRequest;
 
 use super::perm::{PermissionWidget, PermissionModalAction};
+use super::theme::ThemePalette;
 
 pub struct AlternateScreenPermissionModal<'a> {
     widget: PermissionWidget<'a>,
 }
 
 impl AlternateScreenPermissionModal<'_> {
-    pub fn new(widget: &PermissionWidget) -> io::Result<Self> {
+    pub fn new(widget: &PermissionWidget, palette: ThemePalette) -> io::Result<Self> {
         Ok(Self {
             widget: PermissionWidget::new(
                 widget.request_id.clone(),
                 widget.request.clone(),
-                widget.remaining_perms)
+                widget.remaining_perms,
+                palette
+            )
         })
     }
     

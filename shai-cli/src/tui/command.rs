@@ -2,6 +2,7 @@ use std::{collections::HashMap, io, time::Duration};
 use shai_llm::ToolCallMethod;
 
 use crate::tui::App;
+use super::theme::Theme;
 
 impl App<'_> {
     pub(crate) fn list_command() -> HashMap<(String, String),Vec<String>> {
@@ -10,6 +11,7 @@ impl App<'_> {
             (("/auth","select a provider"), vec![]),
             (("/tc","set the tool call method: [fc | fc2 | so]"), vec!["method"]),
             (("/tokens","display token usage (input/output)"), vec![]),
+            (("/theme","set theme: [dark | light | toggle]"), vec!["mode"]),
         ])
         .into_iter()
         .map(|((cmd,desc),args)|((cmd.to_string(),desc.to_string()),args.into_iter().map(|s|s.to_string()).collect()))
@@ -64,6 +66,35 @@ impl App<'_> {
                     self.total_input_tokens + self.total_output_tokens
                 );
                 self.input.alert_msg(&msg, Duration::from_secs(5));
+            }
+            "/theme" => {
+                match args.into_iter().next() {
+                    Some("dark") => {
+                        self.theme = Theme::Dark;
+                        let new_palette = self.theme.palette();
+                        self.input.set_palette(new_palette);
+                        self.input.alert_msg("Theme set to dark", Duration::from_secs(2));
+                    }
+                    Some("light") => {
+                        self.theme = Theme::Light;
+                        let new_palette = self.theme.palette();
+                        self.input.set_palette(new_palette);
+                        self.input.alert_msg("Theme set to light", Duration::from_secs(2));
+                    }
+                    Some("toggle") => {
+                        self.theme.toggle();
+                        let new_palette = self.theme.palette();
+                        self.input.set_palette(new_palette);
+                        let theme_name = match self.theme {
+                            Theme::Dark => "dark",
+                            Theme::Light => "light",
+                        };
+                        self.input.alert_msg(&format!("Theme toggled to {}", theme_name), Duration::from_secs(2));
+                    }
+                    _ => {
+                        self.input.alert_msg("Usage: /theme [dark|light|toggle]", Duration::from_secs(3));
+                    }
+                }
             }
             _ => {
                 self.input.alert_msg("command unknown", Duration::from_secs(1));

@@ -13,7 +13,7 @@ use ratatui::{
 use shai_core::{agent::{events::PermissionRequest, output::PrettyFormatter, PermissionResponse}, tools::{ToolCall, ToolResult}};
 // Removed tui_textarea dependency for colored preview
 
-use super::theme::SHAI_YELLOW;
+use super::theme::{SHAI_YELLOW, ThemePalette};
 
 pub enum PermissionModalAction {
     Nope,
@@ -33,11 +33,12 @@ pub struct PermissionWidget<'a> {
     formatted_request: String,
     preview_text: Text<'a>,
     scroll_offset: usize,
-    scroll_state: ScrollbarState
+    scroll_state: ScrollbarState,
+    palette: ThemePalette,
 }
 
 impl PermissionWidget<'_> {
-    pub fn new(request_id: String, request: PermissionRequest, total: usize) -> Self {
+    pub fn new(request_id: String, request: PermissionRequest, total: usize, palette: ThemePalette) -> Self {
         let formatter = PrettyFormatter::new();
         let formatted_request = formatter.format_toolcall(&request.call, request.preview.as_ref());
         let preview_text = formatted_request.into_text().unwrap();
@@ -51,7 +52,8 @@ impl PermissionWidget<'_> {
             formatted_request,
             preview_text,
             scroll_offset: 0,
-            scroll_state: ScrollbarState::new(content_length)
+            scroll_state: ScrollbarState::new(content_length),
+            palette,
         }
     }
 
@@ -150,7 +152,7 @@ impl PermissionWidget<'_> {
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .padding(Padding{left: 1, right: 1, top: 1, bottom: 1})
-            .border_style(Style::default().fg(Color::Cyan))
+            .border_style(Style::default().fg(self.palette.status))
             .title(if self.remaining_perms > 1 {
                 format!(" 🔐 Permission Required ({}/{}) ", 1, self.remaining_perms)
             } else {
@@ -166,11 +168,11 @@ impl PermissionWidget<'_> {
         let tool_name = PrettyFormatter::capitalize_first(&call.tool_name);
         let context = PrettyFormatter::extract_primary_param(&call.parameters, &call.tool_name);
         let mut title = Line::from(vec![
-            Span::styled("🔧 ", Color::White),
-            Span::styled(tool_name,    Style::new().white().bold())
+            Span::styled("🔧 ", self.palette.input_text),
+            Span::styled(tool_name, Style::default().fg(self.palette.input_text).bold())
         ]);
         if let Some((_,ctx)) = context {
-            title.push_span(Span::styled(format!("({})", ctx), Style::new().white()));
+            title.push_span(Span::styled(format!("({})", ctx), Style::default().fg(self.palette.input_text)));
         };
 
         let block = Block::default()
@@ -178,8 +180,8 @@ impl PermissionWidget<'_> {
             .border_set(border::ROUNDED)
             .padding(Padding{left: 1, right: 1, top: 0, bottom: 0})
             .title(title)
-            .title_style(Style::default().fg(Color::White))
-            .border_style(Style::default().fg(Color::DarkGray));        
+            .title_style(Style::default().fg(self.palette.input_text))
+            .border_style(Style::default().fg(self.palette.border));        
     
         let inner = block.inner(tool);
         f.render_widget(block, tool);
@@ -192,7 +194,7 @@ impl PermissionWidget<'_> {
         // Render scrollbar if content is longer than area
         if self.preview_text.lines.len() > inner.height as usize {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .style(Style::default().fg(Color::DarkGray));
+                .style(Style::default().fg(self.palette.border));
             f.render_stateful_widget(scrollbar, inner, &mut self.scroll_state.clone());
         }
 
@@ -201,13 +203,13 @@ impl PermissionWidget<'_> {
         for (i,s) in items.into_iter().enumerate() {
             if i == self.selected_index {
                 lines.push(Line::from(vec![
-                    Span::styled("❯ ", Color::White),
-                    Span::styled(s,    Color::White)
+                    Span::styled("❯ ", self.palette.suggestion_selected_fg),
+                    Span::styled(s,    self.palette.suggestion_selected_fg)
                 ]));
             } else {
                 lines.push(Line::from(vec![
-                    Span::styled("  ", Color::DarkGray),
-                    Span::styled(s,    Color::DarkGray)
+                    Span::styled("  ", self.palette.placeholder),
+                    Span::styled(s,    self.palette.placeholder)
                 ]));
             };
         }

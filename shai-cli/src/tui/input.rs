@@ -20,7 +20,7 @@ use tui_textarea::{Input, TextArea};
 
 use crate::{tui::{cmdnav::CommandNav, helper::HelpArea}};
 
-use super::theme::SHAI_YELLOW;
+use super::theme::{SHAI_YELLOW, ThemePalette};
 
 pub enum UserAction {
     Nope,
@@ -72,10 +72,13 @@ pub struct InputArea<'a> {
 
     // gitignore patterns (loaded once)
     gitignore_patterns: Vec<String>,
+    
+    // theme colors
+    palette: ThemePalette,
 }
 
-impl Default for InputArea<'_> {
-    fn default() -> Self {
+impl InputArea<'_> {
+    pub fn new(palette: ThemePalette) -> Self {
         Self {
             agent_running: false,
             input: TextArea::default(),
@@ -98,18 +101,17 @@ impl Default for InputArea<'_> {
             suggestion_index: None,
             suggestion_search: None,
             gitignore_patterns: Self::load_gitignore_patterns(),
+            palette,
         }
-    }
-}
-
-impl InputArea<'_> {
-    pub fn new() -> Self {
-        Self::default()
     }
 
     pub fn set_history(&mut self, history: Vec<String>) {
         self.history = history;
         self.history_index = self.history.len();
+    }
+
+    pub fn set_palette(&mut self, palette: ThemePalette) {
+        self.palette = palette;
     }
 
     // Parse .gitignore and return list of patterns to ignore
@@ -609,15 +611,14 @@ impl InputArea<'_> {
         ]).areas(area);
         
         // status
-        f.render_widget(Span::styled(self.get_status_text(), Style::default().fg(Color::Yellow)), status);
+        f.render_widget(Span::styled(self.get_status_text(), Style::default().fg(self.palette.status)), status);
 
         // Input - clone and apply block styling
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .padding(Padding { left: 1, right: 1, top: 0, bottom: 0 })
-            .border_style(Style::default().fg(Color::DarkGray));
-            //.border_style(Style::default().bold().fg(Color::Rgb(SHAI_YELLOW.0, SHAI_YELLOW.1, SHAI_YELLOW.2)));
+            .border_style(Style::default().fg(self.palette.border));
         let inner = block.inner(input_area);
         f.render_widget(block, input_area);
 
@@ -626,11 +627,11 @@ impl InputArea<'_> {
 
         // Set placeholder and block
         self.input.set_placeholder_text("? for help");
-        self.input.set_placeholder_style(Style::default().fg(Color::DarkGray));
-        self.input.set_style(Style::default().fg(Color::White));
+        self.input.set_placeholder_style(Style::default().fg(self.palette.placeholder));
+        self.input.set_style(Style::default().fg(self.palette.input_text));
         self.input.set_cursor_style(Style::default()
-            .fg(Color::White)
-            .bg(if !self.input.lines()[0].is_empty() { Color::White } else { Color::Reset }));
+            .fg(self.palette.cursor_fg)
+            .bg(if !self.input.lines()[0].is_empty() { self.palette.cursor_bg } else { Color::Reset }));
         self.input.set_cursor_line_style(Style::default());
         f.render_widget(&self.input, prompt);
         
@@ -643,13 +644,13 @@ impl InputArea<'_> {
 
         let helper_text = self.check_helper_msg();
         f.render_widget(
-            Span::styled(helper_text, Style::default().fg(Color::DarkGray).dim()), 
+            Span::styled(helper_text, Style::default().fg(self.palette.method_label).dim()), 
             helper_left
         );
                 
         // Status
         f.render_widget(
-            Span::styled(self.method_str(), Style::default().fg(Color::DarkGray)), 
+            Span::styled(self.method_str(), Style::default().fg(self.palette.method_label)), 
             helper_right
         );
 
@@ -676,9 +677,9 @@ impl InputArea<'_> {
                 .map(|(window_idx, path)| {
                     let actual_idx = start + window_idx;
                     let style = if Some(actual_idx) == self.suggestion_index {
-                        Style::default().fg(Color::Yellow).bg(Color::DarkGray)
+                        Style::default().fg(self.palette.suggestion_selected_fg).bg(self.palette.suggestion_selected_bg)
                     } else {
-                        Style::default().fg(Color::White)
+                        Style::default().fg(self.palette.suggestion_normal)
                     };
                     ListItem::new(path.as_str()).style(style)
                 })
@@ -694,7 +695,7 @@ impl InputArea<'_> {
                 .block(Block::default()
                     .borders(Borders::ALL)
                     .border_set(border::ROUNDED)
-                    .border_style(Style::default().fg(Color::DarkGray))
+                    .border_style(Style::default().fg(self.palette.border))
                     .title(title));
 
             f.render_widget(suggestions_list, suggestions_area);

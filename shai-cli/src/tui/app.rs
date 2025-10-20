@@ -40,6 +40,7 @@ use super::input::UserAction;
 use crate::tui::perm::PermissionWidget;
 use crate::tui::perm_alt_screen::AlternateScreenPermissionModal;
 use super::perm::PermissionModalAction;
+use super::theme::Theme;
 
 
 pub enum AppModalState<'a> {
@@ -72,6 +73,8 @@ pub struct App<'a> {
 
     pub(crate) total_input_tokens: u32,
     pub(crate) total_output_tokens: u32,
+    
+    pub(crate) theme: Theme, // UI theme (dark/light)
 }
 
 
@@ -168,6 +171,9 @@ impl App<'_> {
 // UI-related Internals
 impl App<'_> {
     pub fn new() -> Self {
+        let theme = Theme::from_env(); // Read from SHAI_TUI_THEME env var
+        let palette = theme.palette();
+        
         Self {
             terminal: None,
             terminal_height: 5,
@@ -175,13 +181,14 @@ impl App<'_> {
             custom_agent: None,
             formatter: PrettyFormatter::new(),
             state: AppModalState::InputShown,
-            input: InputArea::new(),
+            input: InputArea::new(palette),
             commands: Self::list_command(),
             exit: false,
             running_tools: HashMap::new(),
             permission_queue: VecDeque::new(),
             total_input_tokens: 0,
             total_output_tokens: 0,
+            theme,
         }
     }
 
@@ -277,6 +284,14 @@ impl App<'_> {
             return Ok(());
         }
 
+        // Handle theme toggle with Ctrl+T
+        if matches!(key_event.code, KeyCode::Char('t')) && key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+            self.theme.toggle();
+            let new_palette = self.theme.palette();
+            self.input.set_palette(new_palette);
+            return Ok(());
+        }
+
         match &mut self.state {
             AppModalState::InputShown => {
                 let action = self.input.handle_event(key_event).await;
@@ -322,10 +337,12 @@ impl App<'_> {
         match &self.state {
             AppModalState::InputShown if !self.permission_queue.is_empty() => {
                 let (request_id, request) = self.permission_queue.front().unwrap();
+                let palette = self.theme.palette();
                 let widget = PermissionWidget::new(
                     request_id.clone(), 
                     request.clone(), 
-                    self.permission_queue.len()
+                    self.permission_queue.len(),
+                    palette
                 );
                 
                 let terminal_height = self.terminal.as_ref()
@@ -335,7 +352,7 @@ impl App<'_> {
                 
                 if widget.height() > terminal_height.saturating_sub(5) {
                     // Use alternate screen for large modals
-                    if let Ok(mut modal) = AlternateScreenPermissionModal::new(&widget) {
+                    if let Ok(mut modal) = AlternateScreenPermissionModal::new(&widget, palette) {
                         let action = modal.run().await.unwrap_or(PermissionModalAction::Nope);
                         self.handle_permission_action(action).await?;
                     }
