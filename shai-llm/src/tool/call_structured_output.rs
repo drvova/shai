@@ -4,11 +4,12 @@ use schemars::JsonSchema;
 use serde_json::Value;
 use async_trait::async_trait;
 use openai_dive::v1::resources::chat::{
-    ChatCompletionParameters, ChatCompletionParametersBuilder, ChatCompletionResponse, ChatCompletionResponseFormat, JsonSchemaBuilder
+    ChatCompletionParameters, ChatCompletionParametersBuilder, ChatCompletionResponse, ChatCompletionResponseFormat, JsonSchemaBuilder,
+    ChatMessage, ChatMessageContent, Function, ToolCall as LlmToolCall
 };
 use crate::provider::LlmError;
 use crate::tool::ToolBox;
-use crate::{ChatMessage, ChatMessageContent, Function, LlmClient, ToolCall as LlmToolCall};
+use crate::LlmClient;
 
 /// Tool call structure for structured output JSON schema
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -183,11 +184,11 @@ impl ToolCallStructuredOutput for LlmClient {
 
 pub trait IntoChatMessage {
     /// Convert a structured AssistantResponse back to a ChatMessage with tool calls
-    fn into_chatmessage(self) -> crate::ChatMessage;
+    fn into_chatmessage(self) -> ChatMessage;
 }
 
 impl IntoChatMessage for AssistantResponse {
-    fn into_chatmessage(self) -> crate::ChatMessage {
+    fn into_chatmessage(self) -> ChatMessage {
 
         // Convert tools to OpenAI tool calls format
         let tool_calls = self.tools.map(|tools| {

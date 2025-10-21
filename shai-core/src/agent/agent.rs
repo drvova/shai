@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::boxed::Box;
-use shai_llm::{ChatMessage, ChatMessageContent, ToolCallMethod};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent};
+use shai_llm::ToolCallMethod;
 use tokio::sync::{mpsc, broadcast, RwLock, oneshot};
 use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
@@ -376,10 +377,10 @@ impl AgentCore {
                 let enabled = guard.is_sudo();
                 Ok(AgentResponse::SudoStatus { enabled })
             }
-            AgentRequest::Cancel=> {
+            AgentRequest::Terminate=> {
                 self.handle_event(InternalAgentEvent::CancelTask).await
                 .and({
-                    self.set_state(InternalAgentState::Failed { error: "The agent was cancelled".to_string() }).await;
+                    self.set_state(InternalAgentState::Completed { success: false }).await;
                     Ok(AgentResponse::Ack)
                 })
             }
@@ -400,15 +401,25 @@ impl AgentCore {
                 self.handle_event(InternalAgentEvent::CancelTask).await
                 .and({
                     // Emit UserInput event
-                    let _ = self.emit_event(AgentEvent::UserInput { 
-                        input: input.clone() 
+                    let _ = self.emit_event(AgentEvent::UserInput {
+                        input: input.clone()
                     }).await;
-                    
-                    self.trace.write().await.push(ChatMessage::User { 
-                        content: ChatMessageContent::Text(input), 
-                        name: None 
+
+                    self.trace.write().await.push(ChatMessage::User {
+                        content: ChatMessageContent::Text(input),
+                        name: None
                     });
-                    
+
+                    self.set_state(InternalAgentState::Running).await;
+                    Ok(AgentResponse::Ack)
+                })
+            }
+            AgentRequest::SendTrace{ messages } => {
+                self.handle_event(InternalAgentEvent::CancelTask).await
+                .and({
+                    // Add all messages to trace at once
+                    self.trace.write().await.extend(messages);
+
                     self.set_state(InternalAgentState::Running).await;
                     Ok(AgentResponse::Ack)
                 })

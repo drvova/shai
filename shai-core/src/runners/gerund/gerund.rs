@@ -1,5 +1,5 @@
-use openai_dive::v1::resources::chat::ChatCompletionParametersBuilder;
-use shai_llm::{client::LlmClient, provider::LlmError, ChatMessage, ChatMessageContent};
+use openai_dive::v1::resources::chat::{ChatCompletionParametersBuilder, ChatMessage, ChatMessageContent};
+use shai_llm::{client::LlmClient, provider::LlmError};
 
 use super::prompt::gerund_prompt;
 

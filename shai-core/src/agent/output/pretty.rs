@@ -1,5 +1,5 @@
 use chrono::Utc;
-use shai_llm::{ChatMessage, ChatMessageContent};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent};
 use termimad::crossterm::style::Color;
 use termimad::{rgb, MadSkin};
 use crate::agent::{AgentError, AgentEvent};

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use openai_dive::v1::resources::chat::{ChatCompletionParametersBuilder, ChatCompletionResponseFormat, JsonSchemaBuilder};
-use shai_llm::{client::LlmClient, provider::LlmError, ChatMessage, ChatMessageContent};
+use openai_dive::v1::resources::chat::{ChatCompletionParametersBuilder, ChatCompletionResponseFormat, JsonSchemaBuilder, ChatMessage, ChatMessageContent};
+use shai_llm::{client::LlmClient, provider::LlmError};
 use serde::{Deserialize, Serialize};
 
 use super::prompt::clifix_prompt;

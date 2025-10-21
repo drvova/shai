@@ -1,3 +1,4 @@
+use openai_dive::v1::resources::chat::ChatMessage;
 use shai_llm::ToolCallMethod;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{timeout, Duration};
@@ -8,8 +9,8 @@ use super::{PermissionResponse, PublicAgentState, UserResponse};
 /// Commands that can be sent to a running agent
 #[derive(Debug, Clone)]
 pub enum AgentRequest {
-    /// Cancel agent execution
-    Cancel,
+    /// Stop the Agent
+    Terminate,
     /// Stop the currently executing task
     StopCurrentTask,    
     /// Send user input (cancels current task, adds to trace, resumes agent)
@@ -17,6 +18,10 @@ pub enum AgentRequest {
     /// Send user input (cancels current task, adds to trace, resumes agent)
     SendUserInput{
         input: String
+    },
+    /// Send multiple messages as a trace (cancels current task, adds all to trace, resumes agent)
+    SendTrace{
+        messages: Vec<ChatMessage>
     },
     /// Switch method for tool call
     SwitchToolCallMethod {
@@ -96,11 +101,11 @@ impl AgentController {
         Ok(())
     }
 
-    pub async fn cancel(&self) -> Result<(), AgentError> {
-        self.send(AgentRequest::Cancel).await.map(|_| Ok(()))?
+    pub async fn terminate(&self) -> Result<(), AgentError> {
+        self.send(AgentRequest::Terminate).await.map(|_| Ok(()))?
     }
 
-    pub async fn test_stop_current_task(&self) -> Result<(), AgentError> {
+    pub async fn stop_current_task(&self) -> Result<(), AgentError> {
         self.send(AgentRequest::StopCurrentTask).await.map(|_| Ok(()))?
     }
 
@@ -113,6 +118,10 @@ impl AgentController {
 
     pub async fn send_user_input(&self, input: String) -> Result<(), AgentError> {
         self.send(AgentRequest::SendUserInput { input: input }).await.map(|_| Ok(()))?
+    }
+
+    pub async fn send_trace(&self, messages: Vec<ChatMessage>) -> Result<(), AgentError> {
+        self.send(AgentRequest::SendTrace { messages }).await.map(|_| Ok(()))?
     }
 
     pub async fn response_user_query(&self,  request_id: String, response: UserResponse) -> Result<(), AgentError> {

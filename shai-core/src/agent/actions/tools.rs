@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{TimeDelta, Utc};
-use shai_llm::{ChatMessage, ToolCall as LlmToolCall};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent, ToolCall as LlmToolCall};
 use tokio::sync::{broadcast, RwLock};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -144,9 +144,9 @@ impl AgentCore {
 
                     // let's first add tool result to trace
                     let _ = {
-                        trace.write().await.push(ChatMessage::Tool { 
+                        trace.write().await.push(ChatMessage::Tool {
                             tool_call_id: call.tool_call_id.clone(),
-                            content: result.to_string()
+                            content: ChatMessageContent::Text(result.to_string())
                         });
                     };
 

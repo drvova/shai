@@ -3,7 +3,8 @@ use crate::agent::{Agent, Brain, StdoutEventManager, ThinkerContext};
 use crate::logging::LoggingConfig;
 use crate::tools::AnyTool;
 use shai_llm::ToolCallMethod;
-use shai_llm::{ChatMessage, ChatMessageContent, client::LlmClient};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent};
+use shai_llm::client::LlmClient;
 use tokio::sync::RwLock;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -40,7 +41,7 @@ async fn create_coder_agent_with_goal(goal: &str) -> impl Agent {
     let write = Box::new(crate::tools::WriteTool::new(fs_log.clone()));
     let toolbox: Vec<Box<dyn AnyTool>> = vec![bash, edit, multiedit, fetch, find, ls, read, todoread, todowrite, write];
     
-    crate::agent::AgentBuilder::new(Box::new(CoderBrain::new(llm_client, model)))
+    crate::agent::AgentBuilder::with_brain(Box::new(CoderBrain::new(llm_client, model)))
         .goal(goal)
         .tools(toolbox)
         .sudo()

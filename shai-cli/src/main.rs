@@ -14,7 +14,8 @@ use shai_core::config::config::ShaiConfig;
 use shai_core::config::agent::AgentConfig;
 use shai_core::agent::builder::AgentBuilder;
 use shai_core::runners::clifixer::fix::clifix;
-use shai_llm::{ChatMessage, ChatMessageContent};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent};
+use shai_llm::LlmClient;
 use tui::auth::AppAuth;
 use tui::theme::{apply_gradient, logo, logo_cyan, SHAI_WHITE, SHAI_YELLOW};
 use tui::App;
@@ -25,6 +26,7 @@ use std::process::Command;
 use std::time::Duration;
 use tokio::time::{sleep, interval};
 use futures::StreamExt;
+use tracing_subscriber;
 
 mod headless;
 #[cfg(unix)]
@@ -126,6 +128,17 @@ enum Commands {
         /// The command that was executed (optional)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
+    },
+    /// Start HTTP server with SSE streaming
+    Serve {
+        /// Port to bind to
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+        /// Agent name to use for persistent session (optional)
+        agent: Option<String>,
+        /// Use ephemeral mode (spawn new agent per request)
+        #[arg(long)]
+        ephemeral: bool,
     }
 }
 
@@ -162,6 +175,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Postcmd { exit_code, command }) => {
             let command_str = command.join(" ");
             handle_postcmd(exit_code, command_str).await?;
+        },
+        Some(Commands::Serve { port, agent, ephemeral }) => {
+            handle_serve(port, agent, ephemeral).await?;
         },
         None => {
             // Check for stdin input or trailing arguments
@@ -331,15 +347,12 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
 
     match exit_code {
         0 => {
-            // Success, do nothing
             return Ok(());
         },
         code if code >= 128 => {
-            // Signal (Ctrl-C, SIGTERM, etc.), ignore
             return Ok(());
         },
         _ => {
-            // Error occurred, analyze it
             let last_terminal_output = env::var("SHAI_SESSION_ID").ok()
                 .and_then(|session_id| {
                     let client = ShaiSessionClient::new(&session_id);
@@ -428,7 +441,7 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                                     }
                                     (KeyCode::Esc, _) => {
                                         disable_raw_mode().unwrap();
-                                        println!(); 
+                                        println!();
                                         break;
                                     }
                                     (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
@@ -437,9 +450,7 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
                                         eprintln!("Exiting...");
                                         std::process::exit(0);
                                     }
-                                    _ => {
-                                        // Ignore other keys
-                                    }
+                                    _ => {}
                                 }
                             }
                         }
@@ -450,6 +461,26 @@ pub async fn handle_postcmd(exit_code: i32, command: String) -> Result<(), Box<d
         }
     }
     
+    Ok(())
+}
+
+async fn handle_serve(port: u16, agent: Option<String>, ephemeral: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing for HTTP server logs
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_level(true)
+        .with_env_filter("shai_http=debug")
+        .init();
+
+    println!("{}", logo_cyan());
+
+    let addr = format!("127.0.0.1:{}", port);
+    let config = shai_http::ServerConfig::new(addr)
+        .with_ephemeral(ephemeral)
+        .with_max_sessions(Some(1));
+
+    shai_http::start_server(config).await?;
+
     Ok(())
 }
 

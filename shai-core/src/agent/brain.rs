@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use async_trait::async_trait;
-use shai_llm::{ChatMessage, ToolCallMethod};
+use openai_dive::v1::resources::chat::ChatMessage;
+use shai_llm::ToolCallMethod;
 use tokio::sync::RwLock;
 
 use crate::tools::types::AnyToolBox;

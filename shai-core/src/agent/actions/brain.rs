@@ -1,5 +1,5 @@
 use chrono::Utc;
-use shai_llm::ChatMessage;
+use openai_dive::v1::resources::chat::ChatMessage;
 use tracing::info;
 use tokio_util::sync::CancellationToken;
 use crate::agent::{AgentCore, AgentError, AgentEvent, InternalAgentEvent, InternalAgentState, ThinkerContext, ThinkerDecision, ThinkerFlowControl};

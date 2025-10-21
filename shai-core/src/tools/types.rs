@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use schemars::JsonSchema;
-use shai_llm::{ChatCompletionFunction, ChatCompletionTool, ChatCompletionToolType, ToolBox, ToolDescription};
+use openai_dive::v1::resources::chat::{ChatCompletionFunction, ChatCompletionTool, ChatCompletionToolType};
+use shai_llm::{ToolBox, ToolDescription};
 use tokio_util::sync::CancellationToken;
 use std::collections::HashMap;
 use std::fmt;

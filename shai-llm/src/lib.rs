@@ -18,16 +18,3 @@ pub use tool::{
     FunctionCallingAutoBuilder, 
     FunctionCallingRequiredBuilder};
 
-// Re-export commonly used openai_dive types for consumers
-pub use openai_dive::v1::resources::chat::{
-    ChatCompletionParameters,
-    ChatCompletionResponse, 
-    ChatMessage,
-    ChatMessageContent,
-    ChatCompletionTool,
-    ChatCompletionToolType,
-    ChatCompletionFunction,
-    ToolCall,
-    Function,
-    ChatCompletionChoice,
-};

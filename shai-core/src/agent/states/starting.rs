@@ -1,6 +1,6 @@
 use crate::agent::{AgentCore, AgentError, InternalAgentEvent};
 use super::InternalAgentState;
-use shai_llm::ChatMessage;
+use openai_dive::v1::resources::chat::ChatMessage;
 use tracing::error;
 
 impl AgentCore {

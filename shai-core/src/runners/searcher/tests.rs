@@ -1,7 +1,8 @@
 use super::searcher::SearcherBrain;
 use crate::agent::Agent;
 use crate::logging::LoggingConfig;
-use shai_llm::{ChatMessage, ChatMessageContent, client::LlmClient};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent};
+use shai_llm::client::LlmClient;
 use std::sync::Arc;
 use tempfile::TempDir;
 use std::sync::Once;
@@ -19,7 +20,7 @@ async fn create_searcher_agent_with_goal(goal: &str) -> impl Agent {
     let model = llm_client.default_model().await.expect("default model");
     println!("using model: {:?}", model);
     
-    crate::agent::AgentBuilder::new(Box::new(SearcherBrain::new(llm_client, model)))
+    crate::agent::AgentBuilder::with_brain(Box::new(SearcherBrain::new(llm_client, model)))
         .goal(goal)
         .tools(vec![
             Box::new(crate::tools::FetchTool::new()),

@@ -6,7 +6,7 @@ use super::error::AgentError;
 use super::builder::AgentBuilder;
 use crate::logging::LoggingConfig;
 use super::{AgentRequest, PublicAgentState, ThinkerDecision};
-use shai_llm::{ChatMessage, ChatMessageContent};
+use openai_dive::v1::resources::chat::{ChatMessage, ChatMessageContent, ToolCall, Function};
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use schemars::JsonSchema;
@@ -76,10 +76,10 @@ impl Brain for SleepingThinker {
             Ok(ThinkerDecision::agent_continue(ChatMessage::Assistant {
                 content: None,
                 reasoning_content: None,
-                tool_calls: Some(vec![shai_llm::ToolCall {
+                tool_calls: Some(vec![ToolCall {
                     id: "call_1".to_string(),
                     r#type: "function".to_string(),
-                    function: shai_llm::Function {
+                    function: Function {
                         name: "sleeping_tool".to_string(),
                         arguments: "{}".to_string(),
                     },
@@ -123,10 +123,10 @@ impl Brain for PausableThinker {
                 Ok(ThinkerDecision::agent_continue(ChatMessage::Assistant {
                     content: None,
                     reasoning_content: None,
-                    tool_calls: Some(vec![shai_llm::ToolCall {
+                    tool_calls: Some(vec![ToolCall {
                         id: "call_1".to_string(),
                         r#type: "function".to_string(),
-                        function: shai_llm::Function {
+                        function: Function {
                             name: "sleeping_tool".to_string(),
                             arguments: "{}".to_string(),
                         },
@@ -156,7 +156,7 @@ async fn test_stop_current_task() {
     init_test_logging();
     
     let sleeping_tool: Box<dyn AnyTool> = Box::new(SleepingTool::new(5000)); // 5 seconds
-    let mut agent = AgentBuilder::new(Box::new(SleepingThinker::new()))
+    let mut agent = AgentBuilder::with_brain(Box::new(SleepingThinker::new()))
             .id("test-stop-task-agent")
             .goal("Test goal to start running")
             .tools(vec![sleeping_tool])
@@ -223,7 +223,7 @@ async fn test_tool_completes_normally() {
     let sleeping_tool: Box<dyn AnyTool> = Box::new(SleepingTool::new(1000)); // 1 second
     let tools = vec![sleeping_tool];
     
-    let mut agent = AgentBuilder::new(Box::new(SleepingThinker::new()))
+    let mut agent = AgentBuilder::with_brain(Box::new(SleepingThinker::new()))
         .id("test-normal-completion-agent")
         .goal("Test goal to start running")
         .tools(tools)
@@ -285,7 +285,7 @@ async fn test_event_handling() {
     let received_events = Arc::new(Mutex::new(Vec::<String>::new()));
     let events_clone = received_events.clone();
     
-    let mut agent = AgentBuilder::new(Box::new(SleepingThinker::new()))
+    let mut agent = AgentBuilder::with_brain(Box::new(SleepingThinker::new()))
         .id("test-event-handling-agent")
         .goal("Test goal to generate events")
         .tools(tools)
@@ -351,10 +351,10 @@ impl Brain for RealToolsThinker {
                 Ok(ThinkerDecision::agent_continue(ChatMessage::Assistant {
                     content: None,
                     reasoning_content: None,
-                    tool_calls: Some(vec![shai_llm::ToolCall {
+                    tool_calls: Some(vec![ToolCall {
                         id: "call_ls".to_string(),
                         r#type: "function".to_string(),
-                        function: shai_llm::Function {
+                        function: Function {
                             name: "ls".to_string(),
                             arguments: serde_json::to_string(&serde_json::json!({
                                 "path": "."
@@ -371,10 +371,10 @@ impl Brain for RealToolsThinker {
                 Ok(ThinkerDecision::agent_continue(ChatMessage::Assistant {
                     content: None,
                     reasoning_content: None,
-                    tool_calls: Some(vec![shai_llm::ToolCall {
+                    tool_calls: Some(vec![ToolCall {
                         id: "call_read".to_string(),
                         r#type: "function".to_string(),
-                        function: shai_llm::Function {
+                        function: Function {
                             name: "read".to_string(),
                             arguments: serde_json::to_string(&serde_json::json!({
                                 "path": "./Cargo.toml"
@@ -411,7 +411,7 @@ async fn test_agent_with_real_tools() {
     let ls_tool: Box<dyn AnyTool> = Box::new(LsTool::new());
     let tools = vec![read_tool, ls_tool];
     
-    let mut agent = AgentBuilder::new(Box::new(RealToolsThinker::new()))
+    let mut agent = AgentBuilder::with_brain(Box::new(RealToolsThinker::new()))
         .id("test-real-tools-agent")
         .goal("Test using real tools from toolkit")
         .tools(tools)

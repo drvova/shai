@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::future::Future;
 use futures::future::BoxFuture;
-use shai_llm::ChatMessage;
+use openai_dive::v1::resources::chat::ChatMessage;
 use serde::{Serialize, Deserialize};
 use async_trait::async_trait;
 use super::brain::ThinkerDecision;
