@@ -91,35 +91,9 @@ pub fn get_os_version() -> String {
 
 /// Get today's date in YYYY-MM-DD format
 pub fn get_today() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use chrono::Local;
     
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    
-    // Simple date calculation (days since Unix epoch)
-    let days = now / 86400;
-    let (year, month, day) = days_to_ymd(days as i32);
-    
-    format!("{:04}-{:02}-{:02}", year, month, day)
-}
-
-// Helper function to convert days since Unix epoch to year/month/day
-fn days_to_ymd(days: i32) -> (i32, i32, i32) {
-    let days = days + 719163; // Adjust for Unix epoch (1970-01-01)
-    
-    let era = days / 146097;
-    let doe = days % 146097;
-    let yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;
-    let year = yoe + era * 400;
-    let doy = doe - (365*yoe + yoe/4 - yoe/100);
-    let mp = (5*doy + 2) / 153;
-    let day = doy - (153*mp + 2) / 5 + 1;
-    let month = mp + if mp < 10 { 3 } else { -9 };
-    let year = year + if month <= 2 { 1 } else { 0 };
-    
-    (year, month, day)
+    Local::now().date_naive().format("%Y-%m-%d").to_string()
 }
 
 /// Get the current git branch
